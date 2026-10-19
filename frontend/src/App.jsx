@@ -12,6 +12,10 @@ function App() {
   const [validation, setValidation] = useState(null);
   const [validating, setValidating] = useState(false);
   const [validationError, setValidationError] = useState("");
+  const [anomalyReport, setAnomalyReport] = useState(null);
+  const [detecting, setDetecting] = useState(false);
+  const [anomalyError, setAnomalyError] = useState("");
+  const [contamination, setContamination] = useState("0.05");
 
   async function handleAnalyze(event) {
     event.preventDefault();
@@ -92,6 +96,47 @@ function App() {
       );
     } finally {
       setValidating(false);
+    }
+  }
+  
+  async function handleDetectAnomalies() {
+    if (!file) {
+      setAnomalyError("Please select a CSV file first.");
+      return;
+    }
+
+    setDetecting(true);
+    setAnomalyError("");
+    setAnomalyReport(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("contamination", contamination);
+
+      const response = await fetch(
+        `${API_URL}/detect-anomalies`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Anomaly detection failed."
+        );
+      }
+
+      setAnomalyReport(data);
+    } catch (err) {
+      setAnomalyError(
+        err.message || "Could not connect to DataSentinel."
+      );
+    } finally {
+      setDetecting(false);
     }
   }
 
@@ -387,6 +432,142 @@ function App() {
             </>
           )}
         </section>
+        
+        <section className="table-card anomaly-card">
+          <div className="section-heading">
+            <div>
+              <h2>AI Anomaly Detection</h2>
+              <p>
+                Use machine learning to identify unusual data patterns.
+              </p>
+            </div>
+          </div>
+
+          <div className="anomaly-controls">
+            <label htmlFor="contamination">
+              Expected anomaly proportion
+            </label>
+
+            <select
+              id="contamination"
+              value={contamination}
+              onChange={(event) =>
+                setContamination(event.target.value)
+              }
+            >
+              <option value="0.01">1%</option>
+              <option value="0.05">5%</option>
+              <option value="0.10">10%</option>
+              <option value="0.20">20%</option>
+            </select>
+
+            <button
+              type="button"
+              className="analyze-button"
+              onClick={handleDetectAnomalies}
+              disabled={!file || detecting}
+            >
+              {detecting
+                ? "Detecting..."
+                : "Detect anomalies"}
+            </button>
+          </div>
+
+          {anomalyError && (
+            <div className="error-message">{anomalyError}</div>
+          )}
+
+          {!anomalyReport ? (
+            <div className="empty-state">
+              <strong>No anomaly report yet</strong>
+              <p>
+                Select a CSV file and run AI anomaly detection.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="metrics-grid anomaly-metrics">
+                <div className="metric-card">
+                  <span>Total rows</span>
+                  <strong>{anomalyReport.total_rows}</strong>
+                </div>
+
+                <div className="metric-card">
+                  <span>Normal rows</span>
+                  <strong>{anomalyReport.normal_count}</strong>
+                </div>
+
+                <div className="metric-card">
+                  <span>Anomalies found</span>
+                  <strong>{anomalyReport.anomaly_count}</strong>
+                </div>
+
+                <div className="metric-card">
+                  <span>Anomaly percentage</span>
+                  <strong>
+                    {anomalyReport.anomaly_percentage}%
+                  </strong>
+                </div>
+              </div>
+
+              <h3 className="anomaly-subheading">
+                Detected rows
+              </h3>
+
+              {anomalyReport.anomaly_count === 0 ? (
+                <div className="validation-success">
+                  No anomalies were detected by the model.
+                </div>
+              ) : (
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Row</th>
+                        <th>Values</th>
+                        <th>Anomaly score</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {anomalyReport.results
+                        .filter((row) => row.is_anomaly)
+                        .map((row) => (
+                          <tr key={row.row_number}>
+                            <td>{row.row_number}</td>
+
+                            <td>
+                              {Object.entries(row.values)
+                                .map(([key, value]) =>
+                                  `${key}: ${value ?? "—"}`
+                                )
+                                .join(" | ")}
+                            </td>
+
+                            <td>{row.anomaly_score}</td>
+
+                            <td>
+                              <span className="validation-fail">
+                                Anomaly
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <p className="anomaly-note">
+                Isolation Forest flags unusual patterns, not
+                necessarily incorrect data. Review flagged rows
+                before taking action.
+              </p>
+            </>
+          )}
+        </section>
+
         <footer className="footer">
           <span>DataSentinel · Data quality monitoring</span>
           <span>Built with React + FastAPI</span>

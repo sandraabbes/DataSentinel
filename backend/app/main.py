@@ -1,12 +1,13 @@
 
 from io import StringIO
 import json
-from app.services.validator import validate_dataset
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.profiler import profile_dataset
+from app.services.validator import validate_dataset
+from app.services.anomaly_detector import detect_anomalies
 
 
 app = FastAPI(
@@ -52,7 +53,7 @@ async def analyze_csv(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         csv_text = contents.decode("utf-8-sig")
-        df = pd.read_csv(StringIO(csv_text), sep=None, engine="python")
+        df = pd.read_csv(StringIO(csv_text), sep=",")
 
     except UnicodeDecodeError:
         raise HTTPException(
@@ -108,11 +109,9 @@ async def validate_csv(
         contents = await file.read()
         csv_text = contents.decode("utf-8-sig")
 
-        df = pd.read_csv(
-            StringIO(csv_text),
-            sep=None,
-            engine="python",
-        )
+        
+        df = pd.read_csv(StringIO(csv_text), sep=",")
+
 
     except UnicodeDecodeError:
         raise HTTPException(
@@ -134,4 +133,64 @@ async def validate_csv(
 
     # Run the validation service.
     return validate_dataset(df, validation_rules)
+
+
+@app.post("/detect-anomalies")
+async def detect_csv_anomalies(
+    file: UploadFile = File(...),
+    contamination: float = Form(0.05),
+):
+    # Validate the model configuration.
+    if not 0 < contamination < 0.5:
+        raise HTTPException(
+            status_code=400,
+            detail="Contamination must be greater than 0 and less than 0.5.",
+        )
+
+    # Validate the uploaded file.
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a CSV file.",
+        )
+
+    try:
+        contents = await file.read()
+        csv_text = contents.decode("utf-8-sig")
+
+        
+        df = pd.read_csv(StringIO(csv_text), sep=",")
+
+
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=400,
+            detail="The CSV file must use UTF-8 encoding.",
+        )
+
+    except pd.errors.EmptyDataError:
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded CSV file is empty.",
+        )
+
+    except pd.errors.ParserError:
+        raise HTTPException(
+            status_code=400,
+            detail="The CSV file could not be parsed.",
+        )
+
+    # Run the anomaly detection model.
+    try:
+        return detect_anomalies(
+            df,
+            contamination=contamination,
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        )
+
 

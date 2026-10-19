@@ -131,3 +131,59 @@ def test_validate_csv_with_no_issues():
     result = response.json()
     assert result["valid"] is True
     assert result["total_issues"] == 0
+
+def test_detect_anomalies_endpoint():
+    csv_content = (
+        b"age,salary\n"
+        b"20,1000\n"
+        b"21,1100\n"
+        b"22,1200\n"
+        b"23,1300\n"
+        b"24,1400\n"
+        b"25,1500\n"
+        b"26,1600\n"
+        b"27,1700\n"
+        b"28,1800\n"
+        b"29,1900\n"
+        b"30,2000\n"
+        b"200,100000\n"
+    )
+
+    response = client.post(
+        "/detect-anomalies",
+        files={
+            "file": (
+                "sample.csv",
+                BytesIO(csv_content),
+                "text/csv",
+            )
+        },
+        data={"contamination": "0.05"},
+    )
+
+    assert response.status_code == 200
+
+    result = response.json()
+
+    assert result["total_rows"] == 12
+    assert result["anomaly_count"] >= 1
+    assert len(result["results"]) == 12
+    assert "age" in result["numeric_columns_used"]
+
+
+def test_detect_anomalies_rejects_invalid_contamination():
+    csv_content = b"age,salary\n20,1000\n21,1100\n22,1200\n"
+
+    response = client.post(
+        "/detect-anomalies",
+        files={
+            "file": (
+                "sample.csv",
+                BytesIO(csv_content),
+                "text/csv",
+            )
+        },
+        data={"contamination": "0.8"},
+    )
+
+    assert response.status_code == 400

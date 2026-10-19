@@ -1,0 +1,424 @@
+
+import { useState } from "react";
+import "./App.css";
+
+const API_URL = "http://127.0.0.1:8000";
+
+function App() {
+  const [file, setFile] = useState(null);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [validation, setValidation] = useState(null);
+  const [validating, setValidating] = useState(false);
+  const [validationError, setValidationError] = useState("");
+
+  async function handleAnalyze(event) {
+    event.preventDefault();
+
+    if (!file) {
+      setError("Please select a CSV file first.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setReport(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`${API_URL}/analyze`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Analysis failed.");
+      }
+
+      setReport(data);
+    } catch (err) {
+      setError(
+        err.message ||
+          "Could not connect to DataSentinel. Is the backend running?"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  async function handleValidate() {
+    if (!file) {
+      setValidationError("Please select a CSV file first.");
+      return;
+    }
+
+    setValidating(true);
+    setValidationError("");
+    setValidation(null);
+
+    const rules = {
+      required_columns: ["name", "age"],
+      numeric_ranges: {
+        age: { min: 0, max: 120 },
+        salary: { min: 0 },
+      },
+    };
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("rules", JSON.stringify(rules));
+
+      const response = await fetch(`${API_URL}/validate`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Validation failed.");
+      }
+
+      setValidation(data);
+    } catch (err) {
+      setValidationError(
+        err.message || "Could not connect to DataSentinel."
+      );
+    } finally {
+      setValidating(false);
+    }
+  }
+
+
+  function handleFileChange(event) {
+    const selectedFile = event.target.files[0];
+
+    setFile(selectedFile || null);
+    setReport(null);
+    setError("");
+
+    if (selectedFile && !selectedFile.name.toLowerCase().endsWith(".csv")) {
+      setError("Please choose a file with a .csv extension.");
+      setFile(null);
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-icon">D</div>
+          <div>
+            <h2>DataSentinel</h2>
+            <span>DATA QUALITY PLATFORM</span>
+          </div>
+        </div>
+
+        <div className="nav-label">WORKSPACE</div>
+        <div className="nav-item active">
+          <span>▦</span> Overview
+        </div>
+        <div className="nav-item">
+          <span>⇧</span> Dataset analysis
+        </div>
+
+        <div className="sidebar-bottom">
+          <div className="status-dot" />
+          <div>
+            <strong>Local environment</strong>
+            <span>DataSentinel API</span>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-content">
+        <header className="topbar">
+          <span className="breadcrumb">Workspace / Overview</span>
+          <span className="connection-status">
+            <span className="status-dot" /> Local development
+          </span>
+        </header>
+
+        <section className="page-heading">
+          <div>
+            <p className="eyebrow">DATA INTELLIGENCE</p>
+            <h1>Data quality overview</h1>
+            <p className="subtitle">
+              Upload a dataset to uncover missing values, duplicates, and
+              useful statistics.
+            </p>
+          </div>
+          <div className="date-chip">CSV ANALYZER</div>
+        </section>
+
+        <section className="upload-card">
+          <div className="section-heading">
+            <div>
+              <h2>Analyze a dataset</h2>
+              <p>Start by uploading a CSV file from your computer.</p>
+            </div>
+            <span className="upload-symbol">↑</span>
+          </div>
+
+          <form onSubmit={handleAnalyze}>
+            <label className="drop-zone">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleFileChange}
+              />
+              <span className="upload-icon">⇧</span>
+              <strong>
+                {file ? file.name : "Choose a CSV file"}
+              </strong>
+              <span>
+                {file
+                  ? `${(file.size / 1024).toFixed(1)} KB · Ready to analyze`
+                  : "Click here to browse your files"}
+              </span>
+              <span className="file-hint">CSV files only</span>
+            </label>
+
+            <div className="upload-actions">
+              <span className="helper-text">
+                Your file is analyzed by your local backend.
+              </span>
+              
+            <div className="upload-actions">
+              <span className="helper-text">
+                Your file is analyzed by your local backend.
+              </span>
+                <div className="button-group">
+                  <button
+                    type="submit"
+                    className="analyze-button"
+                    disabled={!file || loading}
+                  >
+                    {loading ? "Analyzing..." : "Run analysis →"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="validate-button"
+                    onClick={handleValidate}
+                    disabled={!file || validating}
+                  >
+                    {validating ? "Validating..." : "Validate data"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+
+          {error && <div className="error-message">{error}</div>}
+        </section>
+
+        <section className="results-section">
+          <div className="section-heading results-heading">
+            <div>
+              <h2>Quality summary</h2>
+              <p>
+                {report
+                  ? "Analysis results for your uploaded dataset."
+                  : "Your dataset metrics will appear here after analysis."}
+              </p>
+            </div>
+            {report && <span className="success-badge">Analysis complete</span>}
+          </div>
+
+          <div className="metrics-grid">
+            <MetricCard
+              label="Total rows"
+              value={report ? report.total_rows : "—"}
+              icon="▤"
+              description="Records in dataset"
+            />
+            <MetricCard
+              label="Total columns"
+              value={report ? report.total_columns : "—"}
+              icon="▥"
+              description="Features detected"
+            />
+            <MetricCard
+              label="Missing values"
+              value={report ? report.missing_values : "—"}
+              icon="!"
+              description="Empty cells found"
+              warning={report && report.missing_values > 0}
+            />
+            <MetricCard
+              label="Duplicate rows"
+              value={report ? report.duplicate_rows : "—"}
+              icon="⧉"
+              description="Repeated records"
+              warning={report && report.duplicate_rows > 0}
+            />
+          </div>
+        </section>
+
+        <section className="table-card">
+          <div className="section-heading">
+            <div>
+              <h2>Column-level analysis</h2>
+              <p>Inspect the quality and statistics of each feature.</p>
+            </div>
+            {report && (
+              <span className="count-badge">
+                {report.columns.length} columns
+              </span>
+            )}
+          </div>
+
+          {report ? (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>Data type</th>
+                    <th>Missing</th>
+                    <th>Missing %</th>
+                    <th>Unique values</th>
+                    <th>Min</th>
+                    <th>Max</th>
+                    <th>Mean</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.columns.map((column) => (
+                    <tr key={column.name}>
+                      <td className="column-name">{column.name}</td>
+                      <td>
+                        <span className="type-badge">
+                          {column.data_type}
+                        </span>
+                      </td>
+                      <td>{column.missing_values}</td>
+                      <td>
+                        <span
+                          className={
+                            column.missing_percentage > 0
+                              ? "missing-value"
+                              : ""
+                          }
+                        >
+                          {column.missing_percentage}%
+                        </span>
+                      </td>
+                      <td>{column.unique_values}</td>
+                      <td>{formatNumber(column.statistics?.min)}</td>
+                      <td>{formatNumber(column.statistics?.max)}</td>
+                      <td>{formatNumber(column.statistics?.mean)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">▤</div>
+              <strong>No dataset analyzed yet</strong>
+              <p>Upload a CSV file above to see your column-level report.</p>
+            </div>
+          )}
+        </section>
+          
+        <section className="table-card validation-card">
+          <div className="section-heading">
+            <div>
+              <h2>Data validation</h2>
+              <p>Check your dataset against the configured quality rules.</p>
+            </div>
+
+            {validation && (
+              <span
+                className={
+                  validation.valid ? "validation-pass" : "validation-fail"
+                }
+              >
+                {validation.valid ? "All checks passed" : "Issues detected"}
+              </span>
+            )}
+          </div>
+
+          {validationError && (
+            <div className="error-message">{validationError}</div>
+          )}
+
+          {!validation ? (
+            <div className="empty-state">
+              <strong>No validation results yet</strong>
+              <p>Upload a CSV and click Validate data.</p>
+            </div>
+          ) : validation.total_issues === 0 ? (
+            <div className="validation-success">
+              Your dataset passed all configured validation rules.
+            </div>
+          ) : (
+            <>
+              <p className="validation-count">
+                {validation.total_issues} validation issue(s) found.
+              </p>
+
+              <div className="issues-list">
+                {validation.issues.map((issue, index) => (
+                  <article
+                    className="issue-item"
+                    key={`${issue.column}-${issue.rule}-${index}`}
+                  >
+                    <div>
+                      <strong>{issue.column}</strong>
+                      <p>{issue.message}</p>
+                    </div>
+
+                    <span className="issue-count">
+                      {issue.affected_rows} affected
+                    </span>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+        <footer className="footer">
+          <span>DataSentinel · Data quality monitoring</span>
+          <span>Built with React + FastAPI</span>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, icon, description, warning }) {
+  return (
+    <article className="metric-card">
+      <div className="metric-top">
+        <span>{label}</span>
+        <span className={`metric-icon ${warning ? "warning-icon" : ""}`}>
+          {icon}
+        </span>
+      </div>
+      <div className="metric-value">{value}</div>
+      <div className="metric-description">{description}</div>
+    </article>
+  );
+}
+
+function formatNumber(value) {
+  if (value === undefined || value === null) {
+    return "—";
+  }
+
+  return Number(value).toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
+}
+
+export default App;

@@ -1,0 +1,29 @@
+# Python virtual environment
+backend/.venv/
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Testing
+.pytest_cache/
+.coverage
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+
+# Local datasets
+data/raw/*
+data/processed/
+
+# IDE and OS files
+.vscode/
+.DS_Store
+Thumbs.db

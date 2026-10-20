@@ -25,8 +25,6 @@ def detect_anomalies(
         raise ValueError("The dataset must contain at least one column.")
 
     row_count = len(df)
-
-    # Initialize a result for every row.
     results = []
 
     for position in range(row_count):
@@ -47,14 +45,14 @@ def detect_anomalies(
             "isolation_forest_anomaly": False,
             "iqr_anomaly": False,
             "categorical_anomaly": False,
+            "modified_z_score_anomaly": False,
             "detection_methods": [],
             "reasons": [],
             "values": values,
         })
 
-    # Identify numerical columns, including columns stored as text
-    # when at least 80% of their non-missing values are numeric.
-    numeric_df = pd.DataFrame(index=df.index)
+    # Identify numeric columns, including numeric values stored as text.
+    numeric_df = pd.DataFrame(index=range(row_count))
 
     for column in df.columns:
         original = df[column]
@@ -68,10 +66,11 @@ def detect_anomalies(
         if non_missing == 0:
             continue
 
-        if pd.api.types.is_numeric_dtype(original):
-            numeric_df[column] = converted
-        elif converted.notna().sum() / non_missing >= 0.80:
-            numeric_df[column] = converted
+        if (
+            pd.api.types.is_numeric_dtype(original)
+            or converted.notna().sum() / non_missing >= 0.80
+        ):
+            numeric_df[str(column)] = converted.reset_index(drop=True)
 
     numeric_df = numeric_df.replace([np.inf, -np.inf], np.nan)
 
@@ -80,7 +79,7 @@ def detect_anomalies(
         for column in numeric_df.columns
         if numeric_df[column].nunique(dropna=True) > 1
     ]
-    
+
     features = numeric_df[usable_columns].copy()
 
     # Method 1: Isolation Forest.
@@ -115,82 +114,79 @@ def detect_anomalies(
                     "combination of numerical features."
                 )
 
-    # Method 2: IQR outlier detection for each numerical feature.
+    # Method 2: robust modified Z-score using median absolute deviation.
+    # This detects extreme individual values without relying on IQR fences.
     for column in features.columns:
-        series = features[column].dropna()
+        series = features[column]
+        valid = series.dropna()
 
-        if len(series) < 4:
+        if len(valid) < 5:
             continue
 
-        q1 = series.quantile(0.25)
-        q3 = series.quantile(0.75)
+        median = valid.median()
+        mad = (valid - median).abs().median()
+
+        if not np.isfinite(mad) or mad <= 0:
+            continue
+
+        modified_scores = 0.6745 * (series - median).abs() / mad
+
+        for position, score in enumerate(modified_scores):
+            if pd.isna(score) or score <= 3.5:
+                continue
+
+            result = results[position]
+            result["modified_z_score_anomaly"] = True
+
+            if "modified_z_score" not in result["detection_methods"]:
+                result["detection_methods"].append("modified_z_score")
+
+            result["reasons"].append(
+                f"Column '{column}' has a robust modified Z-score "
+                f"of {score:.2f}, above the threshold of 3.5."
+            )
+
+    # Method 3: IQR is retained as an explanatory signal.
+    # It does not independently determine the final classification.
+    for column in features.columns:
+        series = features[column]
+        valid = series.dropna()
+
+        if len(valid) < 4:
+            continue
+
+        q1 = valid.quantile(0.25)
+        q3 = valid.quantile(0.75)
         iqr = q3 - q1
 
         if not np.isfinite(iqr) or iqr <= 0:
             continue
 
-        lower = q1 - 1.5 * iqr
-        upper = q3 + 1.5 * iqr
+        lower = q1 - 3.0 * iqr
+        upper = q3 + 3.0 * iqr
 
-        for position, value in enumerate(features[column]):
-            if pd.isna(value):
-                continue
-
-            if value < lower or value > upper:
-                result = results[position]
-                result["iqr_anomaly"] = True
-
-                if "iqr" not in result["detection_methods"]:
-                    result["detection_methods"].append("iqr")
-
-                result["reasons"].append(
-                    f"Column '{column}' has an extreme value "
-                    f"({value:g}); IQR bounds are "
-                    f"{lower:.4g} to {upper:.4g}."
-                )
-
-    # Method 3: rare-category detection for categorical columns.
-    for column in df.columns:
-        if column in numeric_df.columns:
-            continue
-
-        series = df[column]
-        non_missing = series.dropna()
-
-        if len(non_missing) < 3:
-            continue
-
-        counts = non_missing.astype(str).value_counts()
-        unique_count = len(counts)
-
-        # Avoid flagging near-unique text or identifier columns.
-        if unique_count < 2 or unique_count > row_count * 0.5:
-            continue
-
-        # Flag categories occurring once in this dataset.
         for position, value in enumerate(series):
-            if pd.isna(value):
+            if pd.isna(value) or lower <= value <= upper:
                 continue
 
-            if counts.get(str(value), 0) == 1:
-                result = results[position]
-                result["categorical_anomaly"] = True
+            result = results[position]
+            result["iqr_anomaly"] = True
+            result["reasons"].append(
+                f"Column '{column}' has an IQR outlier ({value:g}); "
+                f"bounds are {lower:.4g} to {upper:.4g}."
+            )
 
-                if "rare_category" not in result["detection_methods"]:
-                    result["detection_methods"].append("rare_category")
-
-                result["reasons"].append(
-                    f"Column '{column}' contains a category "
-                    "that appears only once."
-                )
-
-    # Combine detections. A row is flagged if any method flags it.
+    # Final classification:
+    # require agreement between at least two methods.
+    # IQR is an explanatory signal, not a standalone decision.
     for result in results:
-        result["is_anomaly"] = bool(
-            result["isolation_forest_anomaly"]
-            or result["iqr_anomaly"]
-            or result["categorical_anomaly"]
-        )
+        evidence_count = sum([
+            result["isolation_forest_anomaly"],
+            result["modified_z_score_anomaly"],
+            result["iqr_anomaly"],
+        ])
+
+        result["is_anomaly"] = evidence_count >= 2
 
     anomaly_count = sum(r["is_anomaly"] for r in results)
 

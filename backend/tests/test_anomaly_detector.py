@@ -33,17 +33,19 @@ def test_detect_anomalies_handles_missing_values():
     assert len(result["results"]) == 6
 
 
-def test_detect_anomalies_rejects_non_numeric_data():
+
+def test_detect_anomalies_handles_categorical_data():
     df = pd.DataFrame({
-        "name": ["Ali", "Sara", "John"],
+        "department": [
+            "IT", "IT", "Sales", "IT", "Sales", "HR"
+        ],
     })
 
-    try:
-        detect_anomalies(df)
-        assert False, "Expected ValueError"
-    except ValueError as error:
-        assert "numerical column" in str(error)
+    result = detect_anomalies(df)
 
+    assert result["total_rows"] == 6
+    assert len(result["results"]) == 6
+    assert "anomaly_count" in result
 
 def test_detect_anomalies_rejects_invalid_contamination():
     df = pd.DataFrame({

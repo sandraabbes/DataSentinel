@@ -694,16 +694,75 @@ td {
   color: #253653;
 }
 
-.quality-rules-input {
+.quality-rule-manager {
   flex: 1 1 100%;
   min-width: 0;
-  padding: 11px 12px;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #d5dced;
+  border-radius: 8px;
+  background: white;
+}
+
+.quality-rule-manager > input,
+.rule-editor-row input {
+  min-width: 0;
+  padding: 10px 12px;
   border: 1px solid #d5dced;
   border-radius: 8px;
   background: white;
   color: #253653;
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
-  resize: vertical;
+  font: inherit;
+}
+
+.quality-rule-heading,
+.rule-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quality-rule-heading h3 {
+  margin: 0;
+  color: #253653;
+  font-size: 14px;
+}
+
+.quality-rule-heading p {
+  margin: 5px 0 0;
+  color: #7b879b;
+  font-size: 11px;
+}
+
+.quality-rule-manager label,
+.rule-group-heading strong {
+  color: #536178;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.rule-group-heading button,
+.rule-editor-row button,
+.rule-reset-button {
+  padding: 8px 10px;
+  border: 1px solid #d5dced;
+  border-radius: 7px;
+  background: #fff;
+  color: #43536e;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.rule-editor-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) repeat(2, minmax(75px, 0.6fr)) auto;
+  gap: 8px;
+}
+
+.rule-editor-row.allowed-rule-row {
+  grid-template-columns: minmax(110px, 0.7fr) minmax(160px, 1.5fr) auto;
 }
 
 .anomaly-controls button:disabled {
@@ -758,5 +817,10 @@ td {
   .anomaly-controls select,
   .anomaly-controls button {
     width: 100%;
+  }
+
+  .rule-editor-row,
+  .rule-editor-row.allowed-rule-row {
+    grid-template-columns: 1fr;
   }
 }

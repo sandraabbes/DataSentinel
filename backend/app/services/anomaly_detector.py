@@ -10,6 +10,7 @@ from sklearn.preprocessing import StandardScaler
 def detect_anomalies(
     df: pd.DataFrame,
     contamination: float = 0.05,
+    rules: dict | None = None,
 ) -> dict:
     """Detect potentially anomalous rows in general tabular datasets."""
 
@@ -25,6 +26,7 @@ def detect_anomalies(
         raise ValueError("The dataset must contain at least one column.")
 
     row_count = len(df)
+    rules = rules or {}
     results = []
 
     for position in range(row_count):
@@ -41,6 +43,7 @@ def detect_anomalies(
         results.append({
             "row_number": position + 1,
             "is_anomaly": False,
+            "status": "Normal",
             "anomaly_score": None,
             "isolation_forest_anomaly": False,
             "iqr_anomaly": False,
@@ -176,9 +179,49 @@ def detect_anomalies(
                 f"bounds are {lower:.4g} to {upper:.4g}."
             )
 
-    # Final classification:
-    # require agreement between at least two methods.
-    # IQR is an explanatory signal, not a standalone decision.
+    # Final classification: one signal warrants review; agreement between
+    # independent signals is strong enough to classify as an anomaly.
+    # IQR remains explanatory evidence and contributes to that agreement.
+    rule_violations = {}
+
+    def mark_rule(mask, column, rule_name, description):
+        for position in np.flatnonzero(mask.to_numpy()):
+            rule_violations.setdefault(position, []).append(
+                f"Rule '{rule_name}' failed for column '{column}': {description}"
+            )
+
+    for column in rules.get("required_columns", []):
+        if column in df.columns:
+            mark_rule(df[column].isna(), column, "required_value", "a value is required")
+
+    for column, limits in rules.get("numeric_ranges", {}).items():
+        if column not in df.columns:
+            continue
+        values = pd.to_numeric(df[column], errors="coerce")
+        invalid = values.isna() & df[column].notna()
+        if "min" in limits:
+            invalid |= values.notna() & (values < limits["min"])
+        if "max" in limits:
+            invalid |= values.notna() & (values > limits["max"])
+        mark_rule(invalid, column, "numeric_range", "value is outside the configured range")
+
+    for column, allowed in rules.get("allowed_values", {}).items():
+        if column in df.columns:
+            invalid = df[column].notna() & ~df[column].isin(allowed)
+            mark_rule(invalid, column, "allowed_values", "value is not in the approved list")
+
+    for column in rules.get("unique_columns", []):
+        if column in df.columns:
+            duplicates = df[column].notna() & df[column].duplicated(keep="first")
+            mark_rule(duplicates, column, "unique_column", "value must be unique")
+
+    for position, messages in rule_violations.items():
+        result = results[position]
+        result["status"] = "Anomaly"
+        result["is_anomaly"] = True
+        result["detection_methods"].append("data_quality_rule")
+        result["reasons"].extend(messages)
+
     for result in results:
         evidence_count = sum([
             result["isolation_forest_anomaly"],
@@ -186,18 +229,28 @@ def detect_anomalies(
             result["iqr_anomaly"],
         ])
 
+        if result["status"] == "Anomaly":
+            continue
         result["is_anomaly"] = evidence_count >= 2
+        if evidence_count >= 2:
+            result["status"] = "Anomaly"
+        elif evidence_count == 1:
+            result["status"] = "Needs review"
 
     anomaly_count = sum(r["is_anomaly"] for r in results)
+    review_count = sum(r["status"] == "Needs review" for r in results)
+    normal_count = sum(r["status"] == "Normal" for r in results)
 
     return {
         "total_rows": int(row_count),
         "numeric_columns_used": [str(c) for c in features.columns],
         "anomaly_count": int(anomaly_count),
-        "normal_count": int(row_count - anomaly_count),
+        "review_count": int(review_count),
+        "normal_count": int(normal_count),
         "anomaly_percentage": round(
             anomaly_count / row_count * 100, 2
         ),
         "contamination": contamination,
+        "quality_rules": rules,
         "results": results,
     }

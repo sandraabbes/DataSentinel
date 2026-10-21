@@ -3,6 +3,13 @@ import { useState } from "react";
 import "./App.css";
 
 const API_URL = "http://127.0.0.1:8000";
+const DEFAULT_QUALITY_RULES = {
+  required_columns: ["name", "age"],
+  numeric_ranges: {
+    age: { min: 0, max: 120 },
+    salary: { min: 0 },
+  },
+};
 
 function App() {
   const [file, setFile] = useState(null);
@@ -16,6 +23,9 @@ function App() {
   const [detecting, setDetecting] = useState(false);
   const [anomalyError, setAnomalyError] = useState("");
   const [contamination, setContamination] = useState("0.05");
+  const [qualityRules, setQualityRules] = useState(
+    JSON.stringify(DEFAULT_QUALITY_RULES, null, 2)
+  );
 
   async function handleAnalyze(event) {
     event.preventDefault();
@@ -65,18 +75,10 @@ function App() {
     setValidationError("");
     setValidation(null);
 
-    const rules = {
-      required_columns: ["name", "age"],
-      numeric_ranges: {
-        age: { min: 0, max: 120 },
-        salary: { min: 0 },
-      },
-    };
-
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("rules", JSON.stringify(rules));
+      formData.append("rules", qualityRules);
 
       const response = await fetch(`${API_URL}/validate`, {
         method: "POST",
@@ -113,6 +115,7 @@ function App() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("contamination", contamination);
+      formData.append("rules", qualityRules);
 
       const response = await fetch(
         `${API_URL}/detect-anomalies`,
@@ -461,6 +464,16 @@ function App() {
               <option value="0.20">20%</option>
             </select>
 
+            <label htmlFor="quality-rules">Quality rules (JSON)</label>
+            <textarea
+              id="quality-rules"
+              className="quality-rules-input"
+              value={qualityRules}
+              onChange={(event) => setQualityRules(event.target.value)}
+              spellCheck="false"
+              rows={7}
+            />
+
             <button
               type="button"
               className="analyze-button"
@@ -498,6 +511,11 @@ function App() {
                 </div>
 
                 <div className="metric-card">
+                  <span>Needs review</span>
+                  <strong>{anomalyReport.review_count}</strong>
+                </div>
+
+                <div className="metric-card">
                   <span>Anomalies found</span>
                   <strong>{anomalyReport.anomaly_count}</strong>
                 </div>
@@ -516,7 +534,9 @@ function App() {
 
               {anomalyReport.anomaly_count === 0 ? (
                 <div className="validation-success">
-                  No anomalies were detected by the model.
+                  {anomalyReport.review_count === 0
+                    ? "No anomaly signals were detected by the model."
+                    : "No definite anomalies were detected. Some records need review."}
                 </div>
               ) : (
                 <div className="table-wrapper">
@@ -532,7 +552,7 @@ function App() {
 
                     <tbody>
                       {anomalyReport.results
-                        .filter((row) => row.is_anomaly)
+                        .filter((row) => row.status !== "Normal")
                         .map((row) => (
                           <tr key={row.row_number}>
                             <td>{row.row_number}</td>
@@ -548,8 +568,8 @@ function App() {
                             <td>{row.anomaly_score}</td>
 
                             <td>
-                              <span className="validation-fail">
-                                Anomaly
+                              <span className={row.status === "Anomaly" ? "validation-fail" : "review-badge"}>
+                                {row.status}
                               </span>
                             </td>
                           </tr>

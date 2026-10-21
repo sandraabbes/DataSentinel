@@ -139,12 +139,23 @@ async def validate_csv(
 async def detect_csv_anomalies(
     file: UploadFile = File(...),
     contamination: float = Form(0.05),
+    rules: str = Form("{}"),
 ):
     # Validate the model configuration.
     if not 0 < contamination < 0.5:
         raise HTTPException(
             status_code=400,
             detail="Contamination must be greater than 0 and less than 0.5.",
+        )
+
+    try:
+        quality_rules = json.loads(rules)
+        if not isinstance(quality_rules, dict):
+            raise ValueError("Rules must be a JSON object.")
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid quality rules. Please provide a JSON object.",
         )
 
     # Validate the uploaded file.
@@ -185,6 +196,7 @@ async def detect_csv_anomalies(
         return detect_anomalies(
             df,
             contamination=contamination,
+            rules=quality_rules,
         )
 
     except ValueError as error:

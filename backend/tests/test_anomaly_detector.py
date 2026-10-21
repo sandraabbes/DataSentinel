@@ -17,7 +17,15 @@ def test_detect_anomalies_returns_expected_structure():
 
     assert result["total_rows"] == 12
     assert result["anomaly_count"] >= 1
-    assert result["normal_count"] + result["anomaly_count"] == 12
+    assert (
+        result["normal_count"]
+        + result["review_count"]
+        + result["anomaly_count"]
+        == 12
+    )
+    assert {row["status"] for row in result["results"]} <= {
+        "Normal", "Needs review", "Anomaly"
+    }
     assert len(result["results"]) == 12
 
 

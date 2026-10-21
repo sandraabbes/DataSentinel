@@ -605,6 +605,15 @@ td {
   font-weight: 600;
 }
 
+.review-badge {
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #fff7df;
+  color: #946200;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .validation-pass {
   background: #e2f8eb;
   color: #187545;
@@ -683,6 +692,18 @@ td {
   border-radius: 8px;
   background: white;
   color: #253653;
+}
+
+.quality-rules-input {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #d5dced;
+  border-radius: 8px;
+  background: white;
+  color: #253653;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  resize: vertical;
 }
 
 .anomaly-controls button:disabled {

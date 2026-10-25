@@ -1,4 +1,4 @@
-![CI](https://github.com/sandraabbes/DataSentinel/actions/workflows/ci.yml/badge.svg)
+
 
 # DataSentinel
 

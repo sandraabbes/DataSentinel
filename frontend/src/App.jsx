@@ -53,36 +53,14 @@ async function runTask(setBusy, setErr, task) {
 function App() {
   const [file, setFile] = useState(null);
   const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [validation, setValidation] = useState(null);
-  const [validating, setValidating] = useState(false);
-  const [validationError, setValidationError] = useState("");
   const [anomalyReport, setAnomalyReport] = useState(null);
   const [detecting, setDetecting] = useState(false);
   const [anomalyError, setAnomalyError] = useState("");
   const [qualityScore, setQualityScore] = useState(null);
   const [runningAll, setRunningAll] = useState(false);
   const [contamination, setContamination] = useState("0.05");
-
-
-
-  function handleAnalyze(event) {
-    event.preventDefault();
-    if (!file) return setError("Please select a CSV file first.");
-    setReport(null);
-    return runTask(setLoading, setError, async () =>
-      setReport(await postToApi("/analyze", { file }))
-    );
-  }
-
-  function handleValidate() {
-    if (!file) return setValidationError("Please select a CSV file first.");
-    setValidation(null);
-    return runTask(setValidating, setValidationError, async () =>
-      setValidation(await postToApi("/validate", { file, rules: "{}" }))
-    );
-  }
 
   function handleDetectAnomalies() {
     if (!file) return setAnomalyError("Please select a CSV file first.");
@@ -190,7 +168,7 @@ function App() {
             <span className="upload-symbol">↑</span>
           </div>
 
-          <form onSubmit={handleAnalyze}>
+          <div>
             <label className="drop-zone">
               <input
                 type="file"
@@ -220,15 +198,9 @@ function App() {
                 >
                   {runningAll ? "Running..." : "Run everything"}
                 </button>
-                <button type="submit" className="analyze-button" disabled={!file || loading}>
-                  {loading ? "Analyzing..." : "Run analysis →"}
-                </button>
-                <button type="button" className="validate-button" onClick={handleValidate} disabled={!file || validating}>
-                  {validating ? "Validating..." : "Validate data"}
-                </button>
               </div>
             </div>
-          </form>
+          </div>
 
           {error && <div className="error-message">{error}</div>}
         </section>
@@ -397,14 +369,10 @@ function App() {
             )}
           </div>
 
-          {validationError && (
-            <div className="error-message">{validationError}</div>
-          )}
-
           {!validation ? (
             <div className="empty-state">
               <strong>No validation results yet</strong>
-              <p>Upload a CSV and click Validate data.</p>
+              <p>Upload a CSV and click Run everything to check it.</p>
             </div>
           ) : validation.total_issues === 0 ? (
             <div className="validation-success">
@@ -556,6 +524,7 @@ function App() {
                         <th>Values</th>
                         <th>Anomaly score</th>
                         <th>Status</th>
+                        <th>Why flagged</th>
                       </tr>
                     </thead>
 
@@ -581,6 +550,15 @@ function App() {
                                 {row.status}
                               </span>
                             </td>
+
+                            <td className="reasons-cell">
+                              {row.reasons.slice(0, 3).map((reason, i) => (
+                                <div key={i}>{reason}</div>
+                              ))}
+                              {row.reasons.length > 3 && (
+                                <small>+{row.reasons.length - 3} more (see CSV export)</small>
+                              )}
+                            </td>
                           </tr>
                         ))}
                     </tbody>
@@ -589,9 +567,9 @@ function App() {
               )}
 
               <p className="anomaly-note">
-                Isolation Forest flags unusual patterns, not
-                necessarily incorrect data. Review flagged rows
-                before taking action.
+                Flags show unusual patterns (numeric outliers, rare categories,
+                possible typos), not necessarily incorrect data. Review flagged
+                rows before taking action.
               </p>
             </>
           )}

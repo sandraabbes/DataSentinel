@@ -7,6 +7,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from app.services.rules import evaluate_rules
+from app.services.categorical import detect_categorical_issues
 
 
 def build_score_histogram(results: list[dict], bins: int = 20) -> dict | None:
@@ -210,6 +211,22 @@ def detect_anomalies(
                 f"bounds are {lower:.4g} to {upper:.4g}."
             )
 
+    # Method 4: categorical signals (rare values, typos, spelling variants).
+    categorical_findings, categorical_columns = detect_categorical_issues(
+        df, exclude=set(numeric_df.columns)
+    )
+    categorical_strength = {}
+
+    for position, findings in categorical_findings.items():
+        result = results[position]
+        result["categorical_anomaly"] = True
+        categorical_strength[position] = sum(f.strength for f in findings)
+
+        for finding in findings:
+            if finding.method not in result["detection_methods"]:
+                result["detection_methods"].append(finding.method)
+            result["reasons"].append(finding.message)
+
     # Final classification: one signal warrants review; agreement between
     # independent signals is strong enough to classify as an anomaly.
     # IQR remains explanatory evidence and contributes to that agreement.
@@ -234,12 +251,12 @@ def detect_anomalies(
         result["detection_methods"].append("data_quality_rule")
         result["reasons"].extend(messages)
 
-    for result in results:
+    for position, result in enumerate(results):
         evidence_count = sum([
             result["isolation_forest_anomaly"],
             result["modified_z_score_anomaly"],
             result["iqr_anomaly"],
-        ])
+        ]) + categorical_strength.get(position, 0)
 
         if result["status"] == "Anomaly":
             continue
@@ -256,6 +273,7 @@ def detect_anomalies(
     return {
         "total_rows": int(row_count),
         "numeric_columns_used": [str(c) for c in features.columns],
+        "categorical_columns_used": categorical_columns,
         "anomaly_count": int(anomaly_count),
         "review_count": int(review_count),
         "normal_count": int(normal_count),

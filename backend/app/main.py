@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.services.profiler import profile_dataset
 from app.services.validator import validate_dataset
 from app.services.anomaly_detector import detect_anomalies
+from app.services.report import build_report
 from app.utils.csv_loader import load_csv_upload, parse_rules
 
 
@@ -67,5 +68,25 @@ async def detect_csv_anomalies(
 
     try:
         return detect_anomalies(df, contamination=contamination, rules=quality_rules)
+    except ValueError as error:
+        raise HTTPException(400, str(error))
+
+
+@app.post("/report")
+async def full_report(
+    file: UploadFile = File(...),
+    contamination: float = Form(0.05),
+    rules: str = Form("{}"),
+):
+    if not 0 < contamination < 0.5:
+        raise HTTPException(
+            400, "Contamination must be greater than 0 and less than 0.5."
+        )
+
+    quality_rules = parse_rules(rules)
+    df = await load_csv_upload(file)
+
+    try:
+        return build_report(df, quality_rules, contamination)
     except ValueError as error:
         raise HTTPException(400, str(error))

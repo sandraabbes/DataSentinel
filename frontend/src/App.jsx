@@ -49,6 +49,45 @@ function buildQualityRules(config) {
   };
 }
 
+async function postToApi(path, fields) {
+  const formData = new FormData();
+  Object.entries(fields).forEach(([key, value]) => formData.append(key, value));
+
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, { method: "POST", body: formData });
+  } catch {
+    throw new Error("Could not connect to DataSentinel. Is the backend running?");
+  }
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    /* non-JSON error body */
+  }
+
+  if (!response.ok) {
+    const detail = Array.isArray(data.detail)
+      ? data.detail.map((item) => item.msg).join("; ")
+      : data.detail;
+    throw new Error(detail || "Request failed.");
+  }
+  return data;
+}
+
+async function runTask(setBusy, setErr, task) {
+  setBusy(true);
+  setErr("");
+  try {
+    await task();
+  } catch (err) {
+    setErr(err.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
 function App() {
   const [file, setFile] = useState(null);
   const [report, setReport] = useState(null);
@@ -60,6 +99,8 @@ function App() {
   const [anomalyReport, setAnomalyReport] = useState(null);
   const [detecting, setDetecting] = useState(false);
   const [anomalyError, setAnomalyError] = useState("");
+  const [qualityScore, setQualityScore] = useState(null);
+  const [runningAll, setRunningAll] = useState(false);
   const [contamination, setContamination] = useState("0.05");
   const [qualityRuleConfig, setQualityRuleConfig] = useState(loadQualityRules);
   const qualityRules = JSON.stringify(buildQualityRules(qualityRuleConfig));
@@ -99,120 +140,52 @@ function App() {
     setQualityRuleConfig(DEFAULT_QUALITY_RULES);
   }
 
-  async function handleAnalyze(event) {
+  function handleAnalyze(event) {
     event.preventDefault();
-
-    if (!file) {
-      setError("Please select a CSV file first.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
+    if (!file) return setError("Please select a CSV file first.");
     setReport(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch(`${API_URL}/analyze`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Analysis failed.");
-      }
-
-      setReport(data);
-    } catch (err) {
-      setError(
-        err.message ||
-          "Could not connect to DataSentinel. Is the backend running?"
-      );
-    } finally {
-      setLoading(false);
-    }
+    return runTask(setLoading, setError, async () =>
+      setReport(await postToApi("/analyze", { file }))
+    );
   }
-  
-  async function handleValidate() {
-    if (!file) {
-      setValidationError("Please select a CSV file first.");
-      return;
-    }
 
-    setValidating(true);
-    setValidationError("");
+  function handleValidate() {
+    if (!file) return setValidationError("Please select a CSV file first.");
     setValidation(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("rules", qualityRules);
-
-      const response = await fetch(`${API_URL}/validate`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Validation failed.");
-      }
-
-      setValidation(data);
-    } catch (err) {
-      setValidationError(
-        err.message || "Could not connect to DataSentinel."
-      );
-    } finally {
-      setValidating(false);
-    }
+    return runTask(setValidating, setValidationError, async () =>
+      setValidation(await postToApi("/validate", { file, rules: qualityRules }))
+    );
   }
-  
-  async function handleDetectAnomalies() {
-    if (!file) {
-      setAnomalyError("Please select a CSV file first.");
-      return;
-    }
 
-    setDetecting(true);
-    setAnomalyError("");
+  function handleDetectAnomalies() {
+    if (!file) return setAnomalyError("Please select a CSV file first.");
     setAnomalyReport(null);
+    return runTask(setDetecting, setAnomalyError, async () =>
+      setAnomalyReport(
+        await postToApi("/detect-anomalies", { file, contamination, rules: qualityRules })
+      )
+    );
+  }
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("contamination", contamination);
-      formData.append("rules", qualityRules);
-
-      const response = await fetch(
-        `${API_URL}/detect-anomalies`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.detail || "Anomaly detection failed."
-        );
-      }
-
-      setAnomalyReport(data);
-    } catch (err) {
-      setAnomalyError(
-        err.message || "Could not connect to DataSentinel."
-      );
-    } finally {
-      setDetecting(false);
-    }
+  function handleRunAll() {
+    if (!file) return setError("Please select a CSV file first.");
+    setReport(null);
+    setValidation(null);
+    setAnomalyReport(null);
+    setQualityScore(null);
+    setAnomalyError("");
+    return runTask(setRunningAll, setError, async () => {
+      const data = await postToApi("/report", {
+        file,
+        contamination,
+        rules: qualityRules,
+      });
+      setQualityScore(data.quality_score);
+      setReport(data.profile);
+      setValidation(data.validation);
+      setAnomalyReport(data.anomalies);
+      if (data.anomaly_error) setAnomalyError(data.anomaly_error);
+    });
   }
 
 
@@ -223,6 +196,7 @@ function App() {
     setReport(null);
     setValidation(null);
     setAnomalyReport(null);
+    setQualityScore(null);
     setError("");
 
     if (selectedFile && !selectedFile.name.toLowerCase().endsWith(".csv")) {
@@ -311,6 +285,14 @@ function App() {
             <div className="upload-actions">
               <span className="helper-text">Your file is analyzed by your local backend.</span>
               <div className="button-group">
+                <button
+                  type="button"
+                  className="analyze-button"
+                  onClick={handleRunAll}
+                  disabled={!file || runningAll}
+                >
+                  {runningAll ? "Running..." : "Run everything"}
+                </button>
                 <button type="submit" className="analyze-button" disabled={!file || loading}>
                   {loading ? "Analyzing..." : "Run analysis →"}
                 </button>
@@ -323,6 +305,8 @@ function App() {
 
           {error && <div className="error-message">{error}</div>}
         </section>
+
+        {qualityScore && <ScoreCard result={qualityScore} />}
 
         <section className="results-section">
           <div className="section-heading results-heading">
@@ -693,6 +677,41 @@ function App() {
         </footer>
       </main>
     </div>
+  );
+}
+
+function ScoreCard({ result }) {
+  return (
+    <section className="table-card score-card">
+      <div className="section-heading">
+        <div>
+          <h2>Data quality score</h2>
+          <p>Weighted from completeness, uniqueness, validity and anomalies.</p>
+        </div>
+        <span className="score-badge">
+          {result.score}/100 · Grade {result.grade}
+        </span>
+      </div>
+
+      <div className="score-components">
+        {result.components.map((part) => (
+          <div className="score-row" key={part.key}>
+            <div className="score-row-top">
+              <strong>{part.label}</strong>
+              <span>{part.score}%</span>
+            </div>
+            <div className="score-bar">
+              <div className="score-bar-fill" style={{ width: `${part.score}%` }} />
+            </div>
+            <small>{part.detail}</small>
+          </div>
+        ))}
+      </div>
+
+      {result.skipped.length > 0 && (
+        <p className="anomaly-note">Not included: {result.skipped.join(" · ")}</p>
+      )}
+    </section>
   );
 }
 

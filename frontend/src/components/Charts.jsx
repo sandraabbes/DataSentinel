@@ -38,6 +38,10 @@ export function ScoreHistogram({ histogram }) {
   const peak = Math.max(...normal.map((n, i) => n + flagged[i]), 1);
   const scale = (count) => (count / peak) * height;
 
+  /* Brand: forest green for normal, terracotta for flagged */
+  const colorNormal = "#0F5132";
+  const colorFlagged = "#C8553D";
+
   return (
     <figure className="histogram">
       <svg
@@ -55,14 +59,16 @@ export function ScoreHistogram({ histogram }) {
                 y={height - normalHeight}
                 width={barWidth - 2}
                 height={normalHeight}
-                fill="#6366f1"
+                fill={colorNormal}
+                rx="1"
               />
               <rect
                 x={i * barWidth + 1}
                 y={height - normalHeight - flaggedHeight}
                 width={barWidth - 2}
                 height={flaggedHeight}
-                fill="#ef4444"
+                fill={colorFlagged}
+                rx="1"
               />
             </g>
           );
@@ -73,8 +79,8 @@ export function ScoreHistogram({ histogram }) {
         <span>{edges[edges.length - 1]} (more typical)</span>
       </div>
       <figcaption className="histogram-legend">
-        <span><i style={{ background: "#6366f1" }} /> Normal</span>
-        <span><i style={{ background: "#ef4444" }} /> Flagged</span>
+        <span><i style={{ background: colorNormal }} /> Normal</span>
+        <span><i style={{ background: colorFlagged }} /> Flagged</span>
       </figcaption>
     </figure>
   );

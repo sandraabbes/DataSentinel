@@ -1,10 +1,10 @@
-
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+/* ── Global reset & base ─────────────────────────────────────────── */
+/* Fonts loaded via index.html <link> tags (DM Sans + DM Mono) */
 
 :root {
-  font-family: "Inter", Arial, sans-serif;
-  color: #172238;
-  background: #f6f8fc;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #1A1A18;
+  background: #FAFAF8;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -22,12 +22,14 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
 button:focus-visible,
-input:focus-visible + span {
-  outline: 2px solid #526ff0;
-  outline-offset: 3px;
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #0F5132;
+  outline-offset: 2px;
 }

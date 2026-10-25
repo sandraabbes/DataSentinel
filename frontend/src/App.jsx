@@ -10,6 +10,68 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
+/* ── Lucide-style inline SVG icons (consistent 24×24, stroke-width 2) ── */
+const Icons = {
+  layoutGrid: (
+    <svg className="nav-icon" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  fileSearch: (
+    <svg className="nav-icon" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <circle cx="11.5" cy="14.5" r="2.5" />
+      <line x1="13.25" y1="16.25" x2="15" y2="18" />
+    </svg>
+  ),
+  upload: (
+    <svg viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  ),
+  rows: (
+    <svg viewBox="0 0 24 24">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  ),
+  columns: (
+    <svg viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="9" y1="3" x2="9" y2="21" />
+      <line x1="15" y1="3" x2="15" y2="21" />
+    </svg>
+  ),
+  alertTriangle: (
+    <svg viewBox="0 0 24 24">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
+  copy: (
+    <svg viewBox="0 0 24 24">
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  ),
+  table: (
+    <svg viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="3" y1="15" x2="21" y2="15" />
+      <line x1="9" y1="3" x2="9" y2="21" />
+    </svg>
+  ),
+};
+
 
 async function postToApi(path, fields) {
   const formData = new FormData();
@@ -115,19 +177,19 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-icon">D</div>
+          <div className="brand-icon">DS</div>
           <div>
             <h2>DataSentinel</h2>
-            <span>DATA QUALITY PLATFORM</span>
+            <span>DATA QUALITY</span>
           </div>
         </div>
 
         <div className="nav-label">WORKSPACE</div>
         <div className="nav-item active">
-          <span>▦</span> Overview
+          {Icons.layoutGrid} Overview
         </div>
         <div className="nav-item">
-          <span>⇧</span> Dataset analysis
+          {Icons.fileSearch} Inspect dataset
         </div>
 
         <div className="sidebar-bottom">
@@ -143,29 +205,30 @@ function App() {
         <header className="topbar">
           <span className="breadcrumb">Workspace / Overview</span>
           <span className="connection-status">
-            <span className="status-dot" /> Local development
+            <span className="status-dot" /> Connected
           </span>
         </header>
 
         <section className="page-heading">
           <div>
-            <p className="eyebrow">DATA INTELLIGENCE</p>
-            <h1>Data quality overview</h1>
+            <p className="eyebrow">INSPECT</p>
+            <h1>CSV quality inspector</h1>
             <p className="subtitle">
-              Upload a dataset to uncover missing values, duplicates, and
-              useful statistics.
+              Upload a CSV file. DataSentinel profiles every column, checks for
+              missing values and duplicates, then runs statistical and
+              categorical anomaly detection to flag suspicious rows.
             </p>
           </div>
-          <div className="date-chip">CSV ANALYZER</div>
+          <div className="date-chip">CSV</div>
         </section>
 
         <section className="upload-card">
           <div className="section-heading">
             <div>
-              <h2>Analyze a dataset</h2>
-              <p>Start by uploading a CSV file from your computer.</p>
+              <h2>Upload dataset</h2>
+              <p>Select a CSV file from your machine to begin analysis.</p>
             </div>
-            <span className="upload-symbol">↑</span>
+            <span className="upload-symbol">{Icons.upload}</span>
           </div>
 
           <div>
@@ -175,7 +238,7 @@ function App() {
                 accept=".csv,text/csv"
                 onChange={handleFileChange}
               />
-              <span className="upload-icon">⇧</span>
+              <span className="upload-icon">{Icons.upload}</span>
               <strong>
                 {file ? file.name : "Choose a CSV file"}
               </strong>
@@ -184,11 +247,13 @@ function App() {
                   ? `${(file.size / 1024).toFixed(1)} KB · Ready to analyze`
                   : "Click here to browse your files"}
               </span>
-              <span className="file-hint">CSV files only</span>
+              <span className="file-hint">.csv</span>
             </label>
 
             <div className="upload-actions">
-              <span className="helper-text">Your file is analyzed by your local backend.</span>
+              <span className="helper-text">
+                Analysis runs locally against your backend — no data leaves your machine.
+              </span>
               <div className="button-group">
                 <button
                   type="button"
@@ -196,7 +261,7 @@ function App() {
                   onClick={handleRunAll}
                   disabled={!file || runningAll}
                 >
-                  {runningAll ? "Running..." : "Run everything"}
+                  {runningAll ? "Running…" : "Run everything"}
                 </button>
               </div>
             </div>
@@ -213,13 +278,13 @@ function App() {
               <h2>Quality summary</h2>
               <p>
                 {report
-                  ? "Analysis results for your uploaded dataset."
-                  : "Your dataset metrics will appear here after analysis."}
+                  ? "Profiling results for your dataset."
+                  : "Metrics appear here after analysis."}
               </p>
             </div>
             {report && (
               <div className="heading-actions">
-                <span className="success-badge">Analysis complete</span>
+                <span className="success-badge">Complete</span>
                 <button
                   type="button"
                   className="export-button"
@@ -244,26 +309,26 @@ function App() {
             <MetricCard
               label="Total rows"
               value={report ? report.total_rows : "—"}
-              icon="▤"
+              icon={Icons.rows}
               description="Records in dataset"
             />
             <MetricCard
               label="Total columns"
               value={report ? report.total_columns : "—"}
-              icon="▥"
+              icon={Icons.columns}
               description="Features detected"
             />
             <MetricCard
               label="Missing values"
               value={report ? report.missing_values : "—"}
-              icon="!"
+              icon={Icons.alertTriangle}
               description="Empty cells found"
               warning={report && report.missing_values > 0}
             />
             <MetricCard
               label="Duplicate rows"
               value={report ? report.duplicate_rows : "—"}
-              icon="⧉"
+              icon={Icons.copy}
               description="Repeated records"
               warning={report && report.duplicate_rows > 0}
             />
@@ -271,7 +336,7 @@ function App() {
 
           {report && (
             <>
-              <h3 className="anomaly-subheading">Missing values by column</h3>
+              <h3 className="anomaly-values">Missing values by column</h3>
               <MissingValuesChart columns={report.columns} />
             </>
           )}
@@ -280,8 +345,8 @@ function App() {
         <section className="table-card">
           <div className="section-heading">
             <div>
-              <h2>Column-level analysis</h2>
-              <p>Inspect the quality and statistics of each feature.</p>
+              <h2>Column-level breakdown</h2>
+              <p>Type, completeness, and summary statistics per feature.</p>
             </div>
             {report && (
               <span className="count-badge">
@@ -337,9 +402,9 @@ function App() {
             </div>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">▤</div>
+              <div className="empty-icon">{Icons.table}</div>
               <strong>No dataset analyzed yet</strong>
-              <p>Upload a CSV file above to see your column-level report.</p>
+              <p>Upload a CSV file above to see column-level results.</p>
             </div>
           )}
         </section>
@@ -347,8 +412,8 @@ function App() {
         <section className="table-card validation-card">
           <div className="section-heading">
             <div>
-              <h2>Data validation</h2>
-              <p>Check your dataset against the configured quality rules.</p>
+              <h2>Validation checks</h2>
+              <p>Constraint violations found in the dataset.</p>
             </div>
 
             {validation && (
@@ -372,16 +437,16 @@ function App() {
           {!validation ? (
             <div className="empty-state">
               <strong>No validation results yet</strong>
-              <p>Upload a CSV and click Run everything to check it.</p>
+              <p>Upload a CSV and click Run everything.</p>
             </div>
           ) : validation.total_issues === 0 ? (
             <div className="validation-success">
-              Your dataset passed all configured validation rules.
+              All configured validation rules passed.
             </div>
           ) : (
             <>
               <p className="validation-count">
-                {validation.total_issues} validation issue(s) found.
+                {validation.total_issues} issue{validation.total_issues !== 1 ? "s" : ""} found.
               </p>
 
               <div className="issues-list">
@@ -408,16 +473,17 @@ function App() {
         <section className="table-card anomaly-card">
           <div className="section-heading">
             <div>
-              <h2>AI Anomaly Detection</h2>
+              <h2>Anomaly detection</h2>
               <p>
-                Use machine learning to identify unusual data patterns.
+                Isolation Forest scores numeric columns; IQR flags univariate
+                outliers; categorical checks catch typos and rare values.
               </p>
             </div>
           </div>
 
           <div className="anomaly-controls">
             <label htmlFor="contamination">
-              Expected anomaly proportion
+              Expected anomaly rate
             </label>
 
             <select
@@ -442,7 +508,7 @@ function App() {
               disabled={!file || detecting}
             >
               {detecting
-                ? "Detecting..."
+                ? "Detecting…"
                 : "Detect anomalies"}
             </button>
           </div>
@@ -455,7 +521,7 @@ function App() {
             <div className="empty-state">
               <strong>No anomaly report yet</strong>
               <p>
-                Select a CSV file and run AI anomaly detection.
+                Select a CSV file and run detection to see flagged rows.
               </p>
             </div>
           ) : (
@@ -482,7 +548,7 @@ function App() {
                 </div>
 
                 <div className="metric-card">
-                  <span>Anomaly percentage</span>
+                  <span>Anomaly rate</span>
                   <strong>
                     {anomalyReport.anomaly_percentage}%
                   </strong>
@@ -491,13 +557,13 @@ function App() {
 
               {anomalyReport.score_histogram && (
                 <>
-                  <h3 className="anomaly-subheading">Anomaly score distribution</h3>
+                  <h3 className="anomaly-subheading">Score distribution</h3>
                   <ScoreHistogram histogram={anomalyReport.score_histogram} />
                 </>
               )}
 
               <div className="heading-actions between">
-                <h3 className="anomaly-subheading">Detected rows</h3>
+                <h3 className="anomaly-subheading">Flagged rows</h3>
                 {anomalyReport.anomaly_count + anomalyReport.review_count > 0 && (
                   <button
                     type="button"
@@ -512,8 +578,8 @@ function App() {
               {anomalyReport.anomaly_count === 0 ? (
                 <div className="validation-success">
                   {anomalyReport.review_count === 0
-                    ? "No anomaly signals were detected by the model."
-                    : "No definite anomalies were detected. Some records need review."}
+                    ? "No anomaly signals detected."
+                    : "No definite anomalies detected. Some records need review."}
                 </div>
               ) : (
                 <div className="table-wrapper">
@@ -522,7 +588,7 @@ function App() {
                       <tr>
                         <th>Row</th>
                         <th>Values</th>
-                        <th>Anomaly score</th>
+                        <th>Score</th>
                         <th>Status</th>
                         <th>Why flagged</th>
                       </tr>
@@ -567,17 +633,17 @@ function App() {
               )}
 
               <p className="anomaly-note">
-                Flags show unusual patterns (numeric outliers, rare categories,
-                possible typos), not necessarily incorrect data. Review flagged
-                rows before taking action.
+                Flags indicate unusual patterns — numeric outliers, rare categories,
+                possible typos — not necessarily incorrect data. Review flagged
+                rows before acting on them.
               </p>
             </>
           )}
         </section>
 
         <footer className="footer">
-          <span>DataSentinel · Data quality monitoring</span>
-          <span>Built with React + FastAPI</span>
+          <span>DataSentinel · CSV data quality inspector</span>
+          <span>React + FastAPI</span>
         </footer>
       </main>
     </div>
@@ -589,7 +655,7 @@ function ScoreCard({ result }) {
     <section className="table-card score-card">
       <div className="section-heading">
         <div>
-          <h2>Data quality score</h2>
+          <h2>Quality score</h2>
           <p>Weighted from completeness, uniqueness, validity and anomalies.</p>
         </div>
         <span className="score-badge">

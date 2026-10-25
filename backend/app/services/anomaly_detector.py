@@ -6,6 +6,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from app.services.rules import evaluate_rules
+
 
 def detect_anomalies(
     df: pd.DataFrame,
@@ -183,37 +185,18 @@ def detect_anomalies(
     # independent signals is strong enough to classify as an anomaly.
     # IQR remains explanatory evidence and contributes to that agreement.
     rule_violations = {}
+    rule_warnings = []
 
-    def mark_rule(mask, column, rule_name, description):
-        for position in np.flatnonzero(mask.to_numpy()):
-            rule_violations.setdefault(position, []).append(
-                f"Rule '{rule_name}' failed for column '{column}': {description}"
-            )
-
-    for column in rules.get("required_columns", []):
-        if column in df.columns:
-            mark_rule(df[column].isna(), column, "required_value", "a value is required")
-
-    for column, limits in rules.get("numeric_ranges", {}).items():
-        if column not in df.columns:
+    for violation in evaluate_rules(df, rules):
+        if not violation.row_positions:
+            rule_warnings.append(violation.message)  # e.g. a missing column
             continue
-        values = pd.to_numeric(df[column], errors="coerce")
-        invalid = values.isna() & df[column].notna()
-        if "min" in limits:
-            invalid |= values.notna() & (values < limits["min"])
-        if "max" in limits:
-            invalid |= values.notna() & (values > limits["max"])
-        mark_rule(invalid, column, "numeric_range", "value is outside the configured range")
 
-    for column, allowed in rules.get("allowed_values", {}).items():
-        if column in df.columns:
-            invalid = df[column].notna() & ~df[column].isin(allowed)
-            mark_rule(invalid, column, "allowed_values", "value is not in the approved list")
-
-    for column in rules.get("unique_columns", []):
-        if column in df.columns:
-            duplicates = df[column].notna() & df[column].duplicated(keep="first")
-            mark_rule(duplicates, column, "unique_column", "value must be unique")
+        for position in violation.row_positions:
+            rule_violations.setdefault(position, []).append(
+                f"Rule '{violation.rule}' failed for column "
+                f"'{violation.column}': {violation.row_detail}."
+            )
 
     for position, messages in rule_violations.items():
         result = results[position]
@@ -252,5 +235,6 @@ def detect_anomalies(
         ),
         "contamination": contamination,
         "quality_rules": rules,
+        "rule_warnings": rule_warnings,
         "results": results,
     }

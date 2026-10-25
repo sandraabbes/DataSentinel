@@ -1,13 +1,10 @@
-
-from io import StringIO
-import json
-import pandas as pd
-from fastapi import FastAPI, File, HTTPException, UploadFile, Form
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.profiler import profile_dataset
 from app.services.validator import validate_dataset
 from app.services.anomaly_detector import detect_anomalies
+from app.utils.csv_loader import load_csv_upload, parse_rules
 
 
 app = FastAPI(
@@ -23,6 +20,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.get("/")
 def home():
@@ -42,96 +40,14 @@ def health_check():
 
 @app.post("/analyze")
 async def analyze_csv(file: UploadFile = File(...)):
-    # 1. Check that the uploaded file is a CSV.
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Please upload a CSV file.",
-        )
-
-    # 2. Read the uploaded file and convert it into a DataFrame.
-    try:
-        contents = await file.read()
-        csv_text = contents.decode("utf-8-sig")
-        df = pd.read_csv(StringIO(csv_text), sep=",")
-
-    except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=400,
-            detail="The CSV file must use UTF-8 encoding.",
-        )
-
-    except pd.errors.EmptyDataError:
-        raise HTTPException(
-            status_code=400,
-            detail="The uploaded CSV file is empty.",
-        )
-
-    except pd.errors.ParserError:
-        raise HTTPException(
-            status_code=400,
-            detail="The CSV file could not be parsed.",
-        )
-
-    # 3. Run the profiler.
-    report = profile_dataset(df)
-
-    # 4. Return the report to the user.
-    return report
+    df = await load_csv_upload(file)
+    return profile_dataset(df)
 
 
 @app.post("/validate")
-async def validate_csv(
-    file: UploadFile = File(...),
-    rules: str = Form("{}"),
-):
-    # Check the supplied rules.
-    try:
-        validation_rules = json.loads(rules)
-
-        if not isinstance(validation_rules, dict):
-            raise ValueError("Rules must be a JSON object.")
-
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid validation rules. Please provide a JSON object.",
-        )
-
-    # Check the uploaded file.
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Please upload a CSV file.",
-        )
-
-    try:
-        contents = await file.read()
-        csv_text = contents.decode("utf-8-sig")
-
-        
-        df = pd.read_csv(StringIO(csv_text), sep=",")
-
-
-    except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=400,
-            detail="The CSV file must use UTF-8 encoding.",
-        )
-
-    except pd.errors.EmptyDataError:
-        raise HTTPException(
-            status_code=400,
-            detail="The uploaded CSV file is empty.",
-        )
-
-    except pd.errors.ParserError:
-        raise HTTPException(
-            status_code=400,
-            detail="The CSV file could not be parsed.",
-        )
-
-    # Run the validation service.
+async def validate_csv(file: UploadFile = File(...), rules: str = Form("{}")):
+    validation_rules = parse_rules(rules)
+    df = await load_csv_upload(file)
     return validate_dataset(df, validation_rules)
 
 
@@ -141,68 +57,15 @@ async def detect_csv_anomalies(
     contamination: float = Form(0.05),
     rules: str = Form("{}"),
 ):
-    # Validate the model configuration.
     if not 0 < contamination < 0.5:
         raise HTTPException(
-            status_code=400,
-            detail="Contamination must be greater than 0 and less than 0.5.",
+            400, "Contamination must be greater than 0 and less than 0.5."
         )
+
+    quality_rules = parse_rules(rules)
+    df = await load_csv_upload(file)
 
     try:
-        quality_rules = json.loads(rules)
-        if not isinstance(quality_rules, dict):
-            raise ValueError("Rules must be a JSON object.")
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid quality rules. Please provide a JSON object.",
-        )
-
-    # Validate the uploaded file.
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Please upload a CSV file.",
-        )
-
-    try:
-        contents = await file.read()
-        csv_text = contents.decode("utf-8-sig")
-
-        
-        df = pd.read_csv(StringIO(csv_text), sep=",")
-
-
-    except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=400,
-            detail="The CSV file must use UTF-8 encoding.",
-        )
-
-    except pd.errors.EmptyDataError:
-        raise HTTPException(
-            status_code=400,
-            detail="The uploaded CSV file is empty.",
-        )
-
-    except pd.errors.ParserError:
-        raise HTTPException(
-            status_code=400,
-            detail="The CSV file could not be parsed.",
-        )
-
-    # Run the anomaly detection model.
-    try:
-        return detect_anomalies(
-            df,
-            contamination=contamination,
-            rules=quality_rules,
-        )
-
+        return detect_anomalies(df, contamination=contamination, rules=quality_rules)
     except ValueError as error:
-        raise HTTPException(
-            status_code=400,
-            detail=str(error),
-        )
-
-
+        raise HTTPException(400, str(error))

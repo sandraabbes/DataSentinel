@@ -221,6 +221,8 @@ function App() {
 
     setFile(selectedFile || null);
     setReport(null);
+    setValidation(null);
+    setAnomalyReport(null);
     setError("");
 
     if (selectedFile && !selectedFile.name.toLowerCase().endsWith(".csv")) {
@@ -307,32 +309,14 @@ function App() {
             </label>
 
             <div className="upload-actions">
-              <span className="helper-text">
-                Your file is analyzed by your local backend.
-              </span>
-              
-            <div className="upload-actions">
-              <span className="helper-text">
-                Your file is analyzed by your local backend.
-              </span>
-                <div className="button-group">
-                  <button
-                    type="submit"
-                    className="analyze-button"
-                    disabled={!file || loading}
-                  >
-                    {loading ? "Analyzing..." : "Run analysis →"}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="validate-button"
-                    onClick={handleValidate}
-                    disabled={!file || validating}
-                  >
-                    {validating ? "Validating..." : "Validate data"}
-                  </button>
-                </div>
+              <span className="helper-text">Your file is analyzed by your local backend.</span>
+              <div className="button-group">
+                <button type="submit" className="analyze-button" disabled={!file || loading}>
+                  {loading ? "Analyzing..." : "Run analysis →"}
+                </button>
+                <button type="button" className="validate-button" onClick={handleValidate} disabled={!file || validating}>
+                  {validating ? "Validating..." : "Validate data"}
+                </button>
               </div>
             </div>
           </form>

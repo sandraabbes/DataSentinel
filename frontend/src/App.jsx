@@ -1,53 +1,15 @@
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import "./App.css";
+import { MissingValuesChart, ScoreHistogram } from "./components/Charts";
+import {
+  exportFlaggedRows,
+  exportReportJson,
+  exportValidationIssues,
+} from "./utils/exporters";
 
 const API_URL = "http://127.0.0.1:8000";
-const DEFAULT_QUALITY_RULES = {
-  requiredColumns: "name, age",
-  numericRanges: [
-    { column: "age", min: "0", max: "120" },
-    { column: "salary", min: "0", max: "" },
-  ],
-  allowedValues: [],
-  uniqueColumns: "",
-};
 
-function loadQualityRules() {
-  try {
-    const saved = JSON.parse(localStorage.getItem("datasentinel-quality-rules"));
-    return saved && typeof saved === "object"
-      ? { ...DEFAULT_QUALITY_RULES, ...saved }
-      : DEFAULT_QUALITY_RULES;
-  } catch {
-    return DEFAULT_QUALITY_RULES;
-  }
-}
-
-function buildQualityRules(config) {
-  const splitColumns = (value) => value.split(",").map((item) => item.trim()).filter(Boolean);
-  const numericRanges = {};
-  config.numericRanges.forEach(({ column, min, max }) => {
-    const name = column.trim();
-    if (!name) return;
-    const limits = {};
-    if (min !== "") limits.min = Number(min);
-    if (max !== "") limits.max = Number(max);
-    if (Object.keys(limits).length) numericRanges[name] = limits;
-  });
-  const allowedValues = {};
-  config.allowedValues.forEach(({ column, values }) => {
-    const name = column.trim();
-    const choices = splitColumns(values);
-    if (name && choices.length) allowedValues[name] = choices;
-  });
-  return {
-    required_columns: splitColumns(config.requiredColumns),
-    numeric_ranges: numericRanges,
-    allowed_values: allowedValues,
-    unique_columns: splitColumns(config.uniqueColumns),
-  };
-}
 
 async function postToApi(path, fields) {
   const formData = new FormData();
@@ -102,43 +64,8 @@ function App() {
   const [qualityScore, setQualityScore] = useState(null);
   const [runningAll, setRunningAll] = useState(false);
   const [contamination, setContamination] = useState("0.05");
-  const [qualityRuleConfig, setQualityRuleConfig] = useState(loadQualityRules);
-  const qualityRules = JSON.stringify(buildQualityRules(qualityRuleConfig));
 
-  useEffect(() => {
-    localStorage.setItem("datasentinel-quality-rules", JSON.stringify(qualityRuleConfig));
-  }, [qualityRuleConfig]);
 
-  function updateQualityRuleConfig(key, value) {
-    setQualityRuleConfig((current) => ({ ...current, [key]: value }));
-  }
-
-  function updateRuleRow(group, index, key, value) {
-    setQualityRuleConfig((current) => ({
-      ...current,
-      [group]: current[group].map((rule, rowIndex) =>
-        rowIndex === index ? { ...rule, [key]: value } : rule
-      ),
-    }));
-  }
-
-  function addRuleRow(group, rule) {
-    setQualityRuleConfig((current) => ({
-      ...current,
-      [group]: [...current[group], rule],
-    }));
-  }
-
-  function removeRuleRow(group, index) {
-    setQualityRuleConfig((current) => ({
-      ...current,
-      [group]: current[group].filter((_, rowIndex) => rowIndex !== index),
-    }));
-  }
-
-  function resetQualityRules() {
-    setQualityRuleConfig(DEFAULT_QUALITY_RULES);
-  }
 
   function handleAnalyze(event) {
     event.preventDefault();
@@ -153,7 +80,7 @@ function App() {
     if (!file) return setValidationError("Please select a CSV file first.");
     setValidation(null);
     return runTask(setValidating, setValidationError, async () =>
-      setValidation(await postToApi("/validate", { file, rules: qualityRules }))
+      setValidation(await postToApi("/validate", { file, rules: "{}" }))
     );
   }
 
@@ -162,7 +89,7 @@ function App() {
     setAnomalyReport(null);
     return runTask(setDetecting, setAnomalyError, async () =>
       setAnomalyReport(
-        await postToApi("/detect-anomalies", { file, contamination, rules: qualityRules })
+        await postToApi("/detect-anomalies", { file, contamination, rules: "{}" })
       )
     );
   }
@@ -178,7 +105,7 @@ function App() {
       const data = await postToApi("/report", {
         file,
         contamination,
-        rules: qualityRules,
+        rules: "{}",
       });
       setQualityScore(data.quality_score);
       setReport(data.profile);
@@ -318,10 +245,30 @@ function App() {
                   : "Your dataset metrics will appear here after analysis."}
               </p>
             </div>
-            {report && <span className="success-badge">Analysis complete</span>}
+            {report && (
+              <div className="heading-actions">
+                <span className="success-badge">Analysis complete</span>
+                <button
+                  type="button"
+                  className="export-button"
+                  onClick={() =>
+                    exportReportJson({
+                      fileName: file?.name,
+                      qualityScore,
+                      report,
+                      validation,
+                      anomalyReport,
+                    })
+                  }
+                >
+                  Download report (JSON)
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="metrics-grid">
+
             <MetricCard
               label="Total rows"
               value={report ? report.total_rows : "—"}
@@ -349,6 +296,13 @@ function App() {
               warning={report && report.duplicate_rows > 0}
             />
           </div>
+
+          {report && (
+            <>
+              <h3 className="anomaly-subheading">Missing values by column</h3>
+              <MissingValuesChart columns={report.columns} />
+            </>
+          )}
         </section>
 
         <section className="table-card">
@@ -426,13 +380,20 @@ function App() {
             </div>
 
             {validation && (
-              <span
-                className={
-                  validation.valid ? "validation-pass" : "validation-fail"
-                }
-              >
-                {validation.valid ? "All checks passed" : "Issues detected"}
-              </span>
+              <div className="heading-actions">
+                <span className={validation.valid ? "validation-pass" : "validation-fail"}>
+                  {validation.valid ? "All checks passed" : "Issues detected"}
+                </span>
+                {!validation.valid && (
+                  <button
+                    type="button"
+                    className="export-button"
+                    onClick={() => exportValidationIssues(validation, file?.name)}
+                  >
+                    Export issues (CSV)
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -504,58 +465,7 @@ function App() {
               <option value="0.20">20%</option>
             </select>
 
-            <div className="quality-rule-manager">
-              <div className="quality-rule-heading">
-                <div>
-                  <h3>Quality rules</h3>
-                  <p>Rules are saved in this browser and used for validation and detection.</p>
-                </div>
-                <button type="button" className="rule-reset-button" onClick={resetQualityRules}>
-                  Restore defaults
-                </button>
-              </div>
 
-              <label htmlFor="required-columns">Required columns</label>
-              <input
-                id="required-columns"
-                value={qualityRuleConfig.requiredColumns}
-                onChange={(event) => updateQualityRuleConfig("requiredColumns", event.target.value)}
-                placeholder="name, age"
-              />
-
-              <div className="rule-group-heading">
-                <strong>Numeric ranges</strong>
-                <button type="button" onClick={() => addRuleRow("numericRanges", { column: "", min: "", max: "" })}>+ Add range</button>
-              </div>
-              {qualityRuleConfig.numericRanges.map((rule, index) => (
-                <div className="rule-editor-row" key={`range-${index}`}>
-                  <input aria-label="Range column" placeholder="Column" value={rule.column} onChange={(event) => updateRuleRow("numericRanges", index, "column", event.target.value)} />
-                  <input aria-label="Minimum value" type="number" placeholder="Min" value={rule.min} onChange={(event) => updateRuleRow("numericRanges", index, "min", event.target.value)} />
-                  <input aria-label="Maximum value" type="number" placeholder="Max" value={rule.max} onChange={(event) => updateRuleRow("numericRanges", index, "max", event.target.value)} />
-                  <button type="button" aria-label="Remove numeric range" onClick={() => removeRuleRow("numericRanges", index)}>Remove</button>
-                </div>
-              ))}
-
-              <div className="rule-group-heading">
-                <strong>Allowed values</strong>
-                <button type="button" onClick={() => addRuleRow("allowedValues", { column: "", values: "" })}>+ Add allowed-values rule</button>
-              </div>
-              {qualityRuleConfig.allowedValues.map((rule, index) => (
-                <div className="rule-editor-row allowed-rule-row" key={`allowed-${index}`}>
-                  <input aria-label="Allowed-values column" placeholder="Column" value={rule.column} onChange={(event) => updateRuleRow("allowedValues", index, "column", event.target.value)} />
-                  <input aria-label="Approved values, comma separated" placeholder="Approved values, comma separated" value={rule.values} onChange={(event) => updateRuleRow("allowedValues", index, "values", event.target.value)} />
-                  <button type="button" aria-label="Remove allowed-values rule" onClick={() => removeRuleRow("allowedValues", index)}>Remove</button>
-                </div>
-              ))}
-
-              <label htmlFor="unique-columns">Values that must be unique</label>
-              <input
-                id="unique-columns"
-                value={qualityRuleConfig.uniqueColumns}
-                onChange={(event) => updateQualityRuleConfig("uniqueColumns", event.target.value)}
-                placeholder="email, customer_id"
-              />
-            </div>
 
             <button
               type="button"
@@ -611,9 +521,25 @@ function App() {
                 </div>
               </div>
 
-              <h3 className="anomaly-subheading">
-                Detected rows
-              </h3>
+              {anomalyReport.score_histogram && (
+                <>
+                  <h3 className="anomaly-subheading">Anomaly score distribution</h3>
+                  <ScoreHistogram histogram={anomalyReport.score_histogram} />
+                </>
+              )}
+
+              <div className="heading-actions between">
+                <h3 className="anomaly-subheading">Detected rows</h3>
+                {anomalyReport.anomaly_count + anomalyReport.review_count > 0 && (
+                  <button
+                    type="button"
+                    className="export-button"
+                    onClick={() => exportFlaggedRows(anomalyReport, file?.name)}
+                  >
+                    Export flagged rows (CSV)
+                  </button>
+                )}
+              </div>
 
               {anomalyReport.anomaly_count === 0 ? (
                 <div className="validation-success">

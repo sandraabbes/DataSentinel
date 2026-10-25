@@ -53,7 +53,18 @@ def test_tiny_dataset_still_returns_a_score():
     assert report["quality_score"]["score"] > 0
 
 
+def test_histogram_covers_all_rows_even_in_report():
+    df = clean_df()
+    df.loc[0, "age"] = 5000
+    report = build_report(df, {}, 0.05)
+
+    hist = report["anomalies"]["score_histogram"]
+    assert sum(hist["normal"]) + sum(hist["flagged"]) == len(df)
+    assert len(hist["bin_edges"]) == len(hist["normal"]) + 1
+
+
 def test_report_endpoint():
+
     csv = clean_df().to_csv(index=False)
     response = client.post(
         "/report",

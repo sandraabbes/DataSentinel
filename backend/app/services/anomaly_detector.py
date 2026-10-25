@@ -9,6 +9,35 @@ from sklearn.preprocessing import StandardScaler
 from app.services.rules import evaluate_rules
 
 
+def build_score_histogram(results: list[dict], bins: int = 20) -> dict | None:
+    """Histogram of anomaly scores, split into normal and flagged rows."""
+    scored = [
+        (r["anomaly_score"], r["status"])
+        for r in results
+        if r["anomaly_score"] is not None
+    ]
+    if not scored:
+        return None
+
+    scores = np.array([score for score, _ in scored])
+    low, high = float(scores.min()), float(scores.max())
+    if high <= low:
+        high = low + 1e-6
+
+    normal = [0] * bins
+    flagged = [0] * bins
+    for score, status in scored:
+        index = min(int((score - low) / (high - low) * bins), bins - 1)
+        (normal if status == "Normal" else flagged)[index] += 1
+
+    edges = np.linspace(low, high, bins + 1)
+    return {
+        "bin_edges": [round(float(e), 4) for e in edges],
+        "normal": normal,
+        "flagged": flagged,
+    }
+
+
 def detect_anomalies(
     df: pd.DataFrame,
     contamination: float = 0.05,
@@ -236,5 +265,6 @@ def detect_anomalies(
         "contamination": contamination,
         "quality_rules": rules,
         "rule_warnings": rule_warnings,
+        "score_histogram": build_score_histogram(results),
         "results": results,
     }

@@ -1,8 +1,8 @@
 import pandas as pd
 
+from app.services.anomaly_detector import detect_anomalies
 from app.services.rules import evaluate_rules
 from app.services.validator import validate_dataset
-from app.services.anomaly_detector import detect_anomalies
 
 
 def make_df():

@@ -6,8 +6,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from app.services.rules import evaluate_rules
 from app.services.categorical import detect_categorical_issues
+from app.services.rules import evaluate_rules
 
 
 def build_score_histogram(results: list[dict], bins: int = 20) -> dict | None:

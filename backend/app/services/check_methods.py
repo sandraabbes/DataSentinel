@@ -1,5 +1,6 @@
 
 import pandas as pd
+
 from app.services.anomaly_detector import detect_anomalies
 
 path = "../data/raw/datasentinel_labeled_test_dataset.csv"

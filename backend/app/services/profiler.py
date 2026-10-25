@@ -38,8 +38,8 @@ def profile_dataset(df: pd.DataFrame) -> dict:
         column_profiles.append(column_info)
 
     return {
-        "total_rows": int(len(df)),
-        "total_columns": int(len(df.columns)),
+        "total_rows": len(df),
+        "total_columns": len(df.columns),
         "missing_values": int(df.isna().sum().sum()),
         "duplicate_rows": int(df.duplicated().sum()),
         "columns": column_profiles,

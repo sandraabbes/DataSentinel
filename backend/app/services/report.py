@@ -1,10 +1,10 @@
 import pandas as pd
 
-from app.services.profiler import profile_dataset
-from app.services.validator import validate_dataset
 from app.services.anomaly_detector import detect_anomalies
+from app.services.profiler import profile_dataset
 from app.services.rules import evaluate_rules
 from app.services.scoring import compute_quality_score
+from app.services.validator import validate_dataset
 
 RULE_KEYS = ("required_columns", "numeric_ranges", "allowed_values", "unique_columns")
 
